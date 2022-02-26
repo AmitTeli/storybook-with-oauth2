@@ -11,6 +11,7 @@ export const parameters = {
 };
 
 let GoogleAuth;
+let tempStory;
 var SCOPE = 'openid';
 function  initClient() {
   // In practice, your app can retrieve one or more discovery documents.
@@ -26,10 +27,7 @@ function  initClient() {
       'scope': SCOPE
   }).then(function () {
     GoogleAuth = gapi.auth2.getAuthInstance();
-
-    if(!GoogleAuth?.isSignedIn.get()) {
-      GoogleAuth.signIn();
-    }
+    window._GoogleAuth = GoogleAuth;
     // Listen for sign-in state changes.
     GoogleAuth.isSignedIn.listen(updateSigninStatus);
 
@@ -47,6 +45,7 @@ function  initClient() {
       revokeAccess();
     });
   });
+
   return GoogleAuth;
 }
 
@@ -76,31 +75,60 @@ function updateSigninStatus() {
 }
 
 function signOut() {
-  GoogleAuth.signOut(); window.location.reload()
+  GoogleAuth.signOut();
+  window.location.reload();
 }
 function buildUserDetailsStr (user){
-  if(user)
+  if(user && user.getBasicProfile())
     return `<div>Hello ${user.getBasicProfile().getName()} <button id='sign-out-button'>Sign Out</button></div>`
   else 
-    return `<div></div>`
+    return `<div>Getting user details ... </div>`
 }
 
 function buildUserDetails (user){
   if(user && user.getBasicProfile())
     return <div>Hello {user.getBasicProfile().getName()} <button onClick={()=>{signOut()}}>Sign Out</button></div>
   else 
-    return <div></div>
+    return <div>Getting user details 1...</div>
+}
+
+function keepSigningIn() {
+  if(!GoogleAuth) {
+    setTimeout(() => keepSigningIn(), 1000);
+    return
+  } else {
+    if(!GoogleAuth.isSignedIn.get())
+      GoogleAuth.signIn();
+    else
+      location.href = location.href+'&AUTH_STATUS=AUTH_DONE';
+     
+  }
 }
 const AppDecorator = (storyFn) => {
     let user;
+    if(!GoogleAuth && !location.href.includes("AUTH_DONE")) {
+      setTimeout(() => keepSigningIn(), 1000);
+      return (
+        <div id="wait-signin-div">
+          <p>Need to wait for signIn </p>
+          <button onClick={() => keepSigningIn()}>Click to sign in</button>
+          
+        </div>
+      )
+    }
     if(GoogleAuth && GoogleAuth.currentUser){
       user = GoogleAuth.currentUser.get();
     }
+
     const userDiv = buildUserDetails(user)
+    let storyToShow = <div></div>
+    if(!location.href.includes("AUTH_STATUS=AUTH_NOT_DONE")){
+      storyToShow = storyFn()
+    }
     return (
       <div>
         <div id="storybook-user-details">{ userDiv }</div>
-        <div>{ storyFn()}</div>
+        <div>{storyToShow}</div>
         
       </div>
     )
